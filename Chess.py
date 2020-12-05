@@ -110,14 +110,29 @@ class Chess:
         
         return coords
     
+    # Returns all possible coordinates a king at the given position could go
     def king_move(self, coord):
-        pass
+        x,y = coord
+        color = Pieces.color( self.grid[y,x] )
+        coords = set()
+        
+        # King can move anywhere +/- 1 in x and y
+        for i in range(3):
+            for j in range(3):
+                # x can go to x-1, x, x+1 and y can go to y-1, y, y+1
+                # This condition also prevents staying in place
+                if self.in_bounds(x+(i-1), y+(j-1)) and color != Pieces.color( self.grid[ y+(j-1), x+(i-1) ] ):
+                    coords.add( ( x+(i-1), y+(j-1) ) )
+        
+        return coords
     
     # Returns all possible coordinates a queen at the given coordinate could go
     # Just the union of all rook and bishop moves
     def queen_move(self, coord):
         return ( self.rook_moves(coord) | self.bishop_move(coord) )
     
+    # Returns all the possible coordinates a pawn at the given coordinates can go
+    # This allows for two moves
     def pawn_move(self, coord):
         pass
     
