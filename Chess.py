@@ -43,6 +43,12 @@ class Pieces(Enum):
                 return Pieces.White
         return Pieces.Black
     
+    def enemy_color(color):
+        if color == Pieces.White:
+            return Pieces.Black
+        if color == Pieces.Black:
+            return Pieces.White
+    
     def __eq__(self, other):
         return isinstance(other, Pieces) and self.value == other.value
 
@@ -80,8 +86,75 @@ class Chess:
         self.grid[7,7] = Pieces.BlackRook
         self.grid[6,:] = Pieces.BlackPawn
     
+    # Move the piece at the source coordinate to the target coordinate
+    # Parameters:
+    #   source      ->  2-tuple of (x,y) coordinate for the piece being moved
+    #   target      ->  2-tuple of (x,y) coordinate for the location the piece is being moved to
+    def move(self, source, target):
+        x1, y1 = source
+        x2, y2 = target
+        
+        self.grid[y2,x2] = self.grid[y1,x1]             # Move the piece to the new location
+        self.grid[y1,x1] = Pieces.Blank                 # Replace the old location with a blank
+    
+    # Generates all possible grids that can be reached in one move from the current grid
+    # Parameters:
+    #   turn        ->  Pieces.Black or Pieces.White, whoever's turn it is to move
+    # Returns:
+    #   children    ->  list of numpy arrays representing the grid configuration
+    def generate_children(self, turn):
+        transitions = self.generate_transitions(turn)
+        children = []
+        for source, target in transitions:
+            child = self.copy()
+            child.move(source, target)
+            children.append( child )
+        
+        return children
+    
+    # Generates all start to end transitions that can be made from the current grid
+    # Parameters:
+    #   turn        ->  Pieces.Black or Pieces.White, whoever's turn it is to move
+    # Returns:
+    #   transitions ->  list of 2-tuples where each element is a 2-tuple representing an (x,y) coordinate
+    #                   the first 2-tuple is the start point, the second is the end point
+    def generate_transitions(self, turn):
+        sources = set()
+        for y in range(len(self.grid)):
+            for x in range(len(self.grid[y])):
+                if Pieces.color( self.grid[y,x] ) == turn:
+                    sources.add( (x,y) )
+        
+        transitions = []
+        for source in sources:
+            targets = self.get_possible_moves(source)
+            for target in targets:
+                transitions.append( (source, target) )
+        
+        return transitions
+    
+    # Given a coordinate, decide which type of piece it is and return moves appropriate for that
+    # Parameters:
+    #   coord       ->  2-tuple of (x,y) coordinate where the piece in question is located
+    # Returns:
+    #   coords      ->  set of 2-tuples of (x,y) coordinates where the piece in question could move
     def get_possible_moves(self, coord):
-        pass
+        x,y = coord
+        piece = self.grid[y,x]
+        
+        if piece == Pieces.WhitePawn or piece == Pieces.BlackPawn:
+            return self.pawn_move(coord)
+        if piece == Pieces.WhiteRook or piece == Pieces.BlackRook:
+            return self.rook_moves(coord)
+        if piece == Pieces.WhiteKnight or piece == Pieces.BlackKnight:
+            return self.knight_move(coord)
+        if piece == Pieces.WhiteKingBishop or piece == Pieces.WhiteQueenBishop \
+            or piece == Pieces.BlackKingBishop or piece == Pieces.BlackQueenBishop:
+                return self.bishop_move(coord)
+        if piece == Pieces.WhiteQueen or piece == Pieces.BlackQueen:
+            return self.queen_move(coord)
+        if piece == Pieces.WhiteKing or piece == Pieces.BlackKing:
+            return self.king_move(coord)
     
     # Returns all possible coordinates a rook at the given coordinate could go
     def rook_moves(self, coord):
@@ -95,8 +168,27 @@ class Chess:
         
         return coords
     
+    # Returns all possible coordinates a knight at the given coordinate could go
     def knight_move(self, coord):
-        pass
+        x,y = coord
+        color = Pieces.color( self.grid[y,x] )
+        coords = set()
+        
+        first_move = [-2,2]
+        second_move = [-1,1]
+        
+        # first_move is the two space move, second_move is the 1 space move perpendicular
+        for d1 in first_move:
+            for d2 in second_move:
+                
+                # Check moving 2 spaces in x then 1 in y
+                if self.in_bounds(x+d1, y+d2) and Pieces.color( self.grid[y+d2, x+d1] ) != color:
+                    coords.add( (x+d1, y+d2) )
+                # Check moving 2 spaces in y then 1 in x
+                if self.in_bounds(x+d2, y+d1) and Pieces.color( self.grid[y+d1, x+d2] ) != color:
+                    coords.add( (x+d2, y+d1) )
+        
+        return coords
     
     # Returns all possible coordinates a bishop at the given coordinate could go
     def bishop_move(self, coord):
@@ -132,9 +224,30 @@ class Chess:
         return ( self.rook_moves(coord) | self.bishop_move(coord) )
     
     # Returns all the possible coordinates a pawn at the given coordinates can go
-    # This allows for two moves
+    # This allows for two moves if it hasn't yet moved
     def pawn_move(self, coord):
-        pass
+        x,y = coord
+        color = Pieces.color( self.grid[y,x] )
+        coords = set()
+        
+        dy = color.value            # Black moves up (-y), white moves down (+y)
+        
+        if self.grid[y+dy,x] == Pieces.Blank and self.in_bounds(x, y+dy):
+            coords.add( (x,y+dy) )
+        if ( ( color == Pieces.White and y == 1 ) or (color == Pieces.Black and y == 6 ) ) \
+            and ( self.grid[y+(2*dy),x] == Pieces.Blank and self.in_bounds(x, y+(2*dy)) ) :
+            # If the pawn hasn't moved yet, it can move two spaces if that space is open
+            coords.add( (x, y+(2*dy) ) )
+            
+        # Pawns can only attack diagonally
+        if self.in_bounds(x+1, y+dy) and Pieces.color( self.grid[y+dy, x+1] ) == Pieces.enemy_color(color):
+            coords.add( (x+1, y+dy) )
+        if self.in_bounds(x-1, y+dy) and Pieces.color( self.grid[y+dy, x-1] ) == Pieces.enemy_color(color):
+            coords.add( (x-1, y+dy) )
+        
+        # TODO : Implement code to swap pawn with captured piece if it makes it to the end
+        
+        return coords
     
     # Checks to see if the current position puts either side in check
     def in_check(self, grid):
@@ -156,6 +269,12 @@ class Chess:
         # If we haven't taken another piece, we can still move
         if self.grid[y,x] == Pieces.Blank:
             self.crawl_direction(x+dx, y+dy, dx, dy, coords, mover_color)
+    
+    # Clone the chess board and return the new instance
+    def copy(self):
+        clone = Chess()
+        clone.grid = np.array( self.grid )
+        return clone
     
     # String representation of the chess board
     def __str__(self):
