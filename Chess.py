@@ -97,6 +97,16 @@ class Chess:
         self.grid[y2,x2] = self.grid[y1,x1]             # Move the piece to the new location
         self.grid[y1,x1] = Pieces.Blank                 # Replace the old location with a blank
     
+    def replace(self, board):
+        self.grid = board.grid
+    
+    def generate_valid_children(self, turn):
+        children = []
+        for child in self.generate_children(turn):
+            if not self.check(child, turn):
+                children.append( child )
+        return children
+    
     # Generates all possible grids that can be reached in one move from the current grid
     # Parameters:
     #   turn        ->  Pieces.Black or Pieces.White, whoever's turn it is to move
@@ -108,7 +118,12 @@ class Chess:
         for source, target in transitions:
             child = self.copy()
             child.move(source, target)
-            children.append( child )
+            
+            if ( child.grid[target[1],target[0]] == Pieces.WhitePawn and target[1] == Chess.dimension-1 ) \
+                or ( child.grid[target[1],target[0]] == Pieces.BlackPawn and target[1] == 0 ):
+                children += self.promote(child, target)
+            else:
+                children.append( child )
         
         return children
     
@@ -119,26 +134,39 @@ class Chess:
     #   transitions ->  list of 2-tuples where each element is a 2-tuple representing an (x,y) coordinate
     #                   the first 2-tuple is the start point, the second is the end point
     def generate_transitions(self, turn):
-        sources = set()
-        for y in range(len(self.grid)):
-            for x in range(len(self.grid[y])):
-                if Pieces.color( self.grid[y,x] ) == turn:
-                    sources.add( (x,y) )
+        sources = self.get_piece_coordinates(turn)
         
         transitions = []
         for source in sources:
-            targets = self.get_possible_moves(source)
+            targets = self.get_possible_moves(source, turn)
             for target in targets:
                 transitions.append( (source, target) )
         
         return transitions
+    
+    # Get the coordinates for all the existing pieces of one player
+    # Parameters:
+    #   side                ->  Color of one of the players. Pieces.White or Pieces.Black
+    # Returns:
+    #   coords              ->  set of (x,y) coordinate tuples for the coordinates of each piece
+    def get_piece_coordinates(self, side):
+        coords = set()
+        
+        for y in range(Chess.dimension):
+            for x in range(Chess.dimension):
+                if Pieces.color( self.grid[y,x] ) == side:
+                    coords.add( (x,y) )
+        return coords
+    
+    def get_all_possible_moves(self, turn):
+        pass
     
     # Given a coordinate, decide which type of piece it is and return moves appropriate for that
     # Parameters:
     #   coord       ->  2-tuple of (x,y) coordinate where the piece in question is located
     # Returns:
     #   coords      ->  set of 2-tuples of (x,y) coordinates where the piece in question could move
-    def get_possible_moves(self, coord):
+    def get_possible_moves(self, coord, color):
         x,y = coord
         piece = self.grid[y,x]
         
@@ -155,6 +183,8 @@ class Chess:
             return self.queen_move(coord)
         if piece == Pieces.WhiteKing or piece == Pieces.BlackKing:
             return self.king_move(coord)
+    
+    # TODO : Remove any moves that place your own side in check
     
     # Returns all possible coordinates a rook at the given coordinate could go
     def rook_moves(self, coord):
@@ -232,7 +262,7 @@ class Chess:
         
         dy = color.value            # Black moves up (-y), white moves down (+y)
         
-        if self.grid[y+dy,x] == Pieces.Blank and self.in_bounds(x, y+dy):
+        if self.in_bounds(x, y+dy) and self.grid[y+dy,x] == Pieces.Blank:
             coords.add( (x,y+dy) )
         if ( ( color == Pieces.White and y == 1 ) or (color == Pieces.Black and y == 6 ) ) \
             and ( self.grid[y+(2*dy),x] == Pieces.Blank and self.in_bounds(x, y+(2*dy)) ) :
@@ -249,9 +279,67 @@ class Chess:
         
         return coords
     
-    # Checks to see if the current position puts either side in check
-    def in_check(self, grid):
-        pass
+    # Promotes a pawn to another piece if it makes it to the other side of the board
+    # Takes a child grid and returns all possible copies of the grid with different promotions
+    # Parameters:
+    #   child           ->  Chess object to clone and replace with promotions
+    #   coord           ->  (x,y) tuple of grid location for the pawn to be promoted
+    # Returns:
+    #   children        ->  list of children of current chess object
+    def promote(self, child, coord):
+        x,y = coord
+        color = Pieces.color( child.grid[y,x] )
+        
+        promotions = []
+        children = []
+        if color == Pieces.White:
+            promotions = [Pieces.WhiteRook, Pieces.WhiteKnight, Pieces.WhiteQueen, \
+                          Pieces.WhiteKingBishop, Pieces.WhiteQueenBishop]
+        elif color == Pieces.Black:
+            promotions = [Pieces.BlackRook, Pieces.BlackKnight, Pieces.BlackQueen, \
+                          Pieces.BlackKingBishop, Pieces.BlackQueenBishop]
+        
+        for piece in promotions:
+            clone = child.copy()
+            clone.grid[y,x] = piece
+            children.append( clone )
+        
+        return children
+    
+    # Checks to see if the current position puts a certain side in check
+    # Check is true if any of the children grids are missing the king
+    # Parameters:
+    #   grid                ->  The chess board layout to check
+    #   turn                ->  The color to see if its in check. Pieces.Black or Pieces.White
+    # Returns:
+    #   check               ->  True if the player with the color of the turn variable is in check
+    def check(self, board, turn):
+        
+        # Determing which king is the 
+        king = None
+        if turn == Pieces.White:
+            king = Pieces.WhiteKing
+        else:
+            king = Pieces.BlackKing
+        
+        # Check all of the children to see if any of them are missing the king
+        for child in board.generate_children( Pieces.enemy_color(turn) ):
+            if not king in child.grid.flatten():
+                return True
+        
+        return False
+    
+    # Checks to see if the current grid is in checkmate for the player of the given color
+    # Checkmate for turn if all moves from the turn side results in check for turn
+    # Parameters:
+    #   turn                ->  Pieces.White or Pieces.Black. The color of the player we're checking to see if is in checkmate
+    # Returns:
+    #   cm                  ->  True if the turn color is in checkmate
+    def checkmate(self, turn):
+        for child in self.generate_children(turn):
+            if not self.check( child, turn ):
+                return False
+        return True
     
     # Checks to see if a coordinate is still on the grid
     def in_bounds(self, x, y):
@@ -269,6 +357,9 @@ class Chess:
         # If we haven't taken another piece, we can still move
         if self.grid[y,x] == Pieces.Blank:
             self.crawl_direction(x+dx, y+dy, dx, dy, coords, mover_color)
+    
+    def count_pieces(self):
+        return (Chess.dimension * Chess.dimension) - sum( [ el == Pieces.Blank for el in self.grid.flatten() ] )
     
     # Clone the chess board and return the new instance
     def copy(self):
