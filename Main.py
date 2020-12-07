@@ -24,8 +24,8 @@ def test(board):
         current = []
         
         children = board.generate_valid_children(Pieces.White)
-        board.replace( np.random.choice(children) )
-        current.append( board.check( board, Pieces.Black ) )
+        board.replace( children[np.random.choice( np.arange(len(children)) )] )
+        current.append( board.check( board.grid, Pieces.Black ) )
         current.append( board.checkmate( Pieces.Black ) )
         current.append( board.copy() )
         
@@ -34,8 +34,8 @@ def test(board):
             break
         
         children = board.generate_valid_children(Pieces.Black)
-        board.replace( np.random.choice(children) )
-        current.append( board.check( board, Pieces.White ) )
+        board.replace( children[np.random.choice( np.arange(len(children)) )] )
+        current.append( board.check( board.grid, Pieces.White ) )
         current.append( board.checkmate( Pieces.White ) )
         current.append( board.copy() )
         
@@ -54,5 +54,17 @@ def test(board):
     
     return board, results, (time.time()-start)
 
-board = Chess()
-board, results, duration = test(board)
+games = 10
+
+for i in range(games):
+    print("\nGame: ",i)
+    board = Chess()
+    board, results, duration = test(board)
+    #stuff = test(board)
+    if board.checkmate(Pieces.White):
+        print("Black has won")
+    elif board.checkmate(Pieces.Black):
+        print("White has won")
+    else:
+        print("Tie...")
+    print(len(results)," rounds")
