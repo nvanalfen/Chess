@@ -7,6 +7,8 @@ Created on Fri Dec  4 18:01:49 2020
 from enum import Enum
 import numpy as np
 
+#Trying to optimize
+
 # Enum class for representing the sides (White, Black)
 # As well as the various pieces
 class Pieces(Enum):
