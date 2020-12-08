@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import random
 from Chess import Pieces, Chess
+import os
 
 # TODO : Implement the following functions
 # select_move
@@ -51,6 +52,14 @@ class ChessBot:
     # Read in the weights
     def read_learning_file(self):
         if not self.read_path is None:
+            
+            # If the file doesn't exist, make it
+            if not os.path.exists( self.read_path ):
+                hold = self.save_path
+                self.save_path = self.read_path
+                self.write_learning_file()
+                self.save_path = hold
+            
             table = pd.read_csv( self.read_path, index_col=0 )
             
             for ind in table.index:
@@ -98,8 +107,8 @@ class ChessBot:
     # Find the child with the highest score and return that
     def greedy_choice(self, grid):
         children = self.board.generate_valid_children( self.side, grid )
-        best_grid = children[0]
-        best_score = self.get_score( self.board.to_string( grid ) )
+        best_grid = None
+        best_score = 0
         
         for child in children:
             score = self.get_score( self.board.to_string(child) )
@@ -110,6 +119,9 @@ class ChessBot:
                 best_grid = child
                 best_score = score
         
+        if best_grid is None:
+            best_grid = self.random_choice( grid )
+        
         return best_grid
     
     # Chooses just by looking at the next level
@@ -119,6 +131,8 @@ class ChessBot:
         probs = [ 1 for i in range(len(children)) ]
         for i in range(len(children)):
             probs[i] += np.ceil( self.get_score( self.board.to_string( children[i] ) ) )
+        if len(children) == 0:
+            print( self.board.to_string(grid) )
         return random.choices( children, probs )[0]
     
     # Select the next move to play
@@ -139,7 +153,22 @@ class ChessBot:
     def move(self, board, choice="random", layers=5, randomize=-1):
         board.replace( self.select_move( board.grid, choice, layers, randomize=randomize) )
     
+    # Train the bot
+    # Parameters:
+    #   choice                      ->  Type of choice selection to use when making moves
+    #   layers                      ->  Number of layers to search if using "score" or "sum score" choice selection
+    #   training_loops              ->  Number of games to play for training
+    #   save_every                  ->  Save weights at intervals of this many rounds
+    #   randomize                   ->  Regardless of choice selection type, this number will give a probability
+    #                                   of randomly selecting a move to avoid taking the same path every time
+    #                                   Setting this number below 0 gives no chance, between 0 and 1 will give that probablitity
+    # Returns:
+    #   None. The weights are stored and saved
     def train(self, choice="greedy prob", layers=5, training_loops=100, save_every=5, randomize=-1):
+        
+        white_wins = 0
+        black_wins = 0
+        ties = 0
         
         for i in range(training_loops):
             print(i)
@@ -175,7 +204,15 @@ class ChessBot:
                 if captureless == 50:
                     break
             
-            print(winner,"\n")
+            if winner == Pieces.White:
+                white_wins +=1
+            elif winner == Pieces.Black:
+                black_wins += 1
+            else:
+                ties += 1
+            
+            print(winner)
+            print(white_wins," - ",ties," - ",black_wins,"\n")
             self.score_results( configurations, winner )
             
             if i%save_every == 0:
