@@ -33,6 +33,8 @@ class ChessBot:
         self.checkmate = Pieces.Neutral                                 # Same as check, but with checkmate
         self.side = side                                                # Which side the bot is playing for
         
+        self.debug_configs = []
+        
         self.set_read_file_path( learning_file_read_path )
         if learning_file_save_path is None:
             self.set_save_file_path( learning_file_read_path )
@@ -101,7 +103,11 @@ class ChessBot:
     
     # Randomly choose a next move based on the current grid
     def random_choice(self, grid):
+        # TODO : FIX BUG!!!!!
+        # generate_children should act the same regardless of which Chess object uses it, but this isn't
         children = self.board.generate_valid_children( self.side, grid )
+        if len(children) == 0:
+            print( self.board.to_string(grid) )
         return children[ random.choice( np.arange( len(children) ) ) ]
     
     # Find the child with the highest score and return that
@@ -172,6 +178,7 @@ class ChessBot:
         
         for i in range(training_loops):
             print(i)
+            self.debug_configs = []
             
             board = Chess()
             configurations = []
@@ -191,6 +198,7 @@ class ChessBot:
                 
                 self.move( board, choice=choice, randomize=randomize )
                 configurations.append( str(board) )
+                self.debug_configs.append( str(board) )
                 
                 if board.checkmate( Pieces.enemy_color( self.side ) ):
                     winner = self.side

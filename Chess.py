@@ -51,6 +51,11 @@ class Pieces(Enum):
         if color == Pieces.Black:
             return Pieces.White
     
+    def from_symbol(symbol):
+        for el in Pieces:
+            if el.value == symbol:
+                return el
+    
     def __eq__(self, other):
         return isinstance(other, Pieces) and self.value == other.value
 
@@ -304,7 +309,7 @@ class Chess:
         if self.in_bounds(x, y+dy) and grid[y+dy,x] == Pieces.Blank:
             coords.add( (x,y+dy) )
         if ( ( color == Pieces.White and y == 1 ) or (color == Pieces.Black and y == 6 ) ) \
-            and ( grid[y+(2*dy),x] == Pieces.Blank and self.in_bounds(x, y+(2*dy)) ) :
+            and ( self.in_bounds(x, y+(2*dy)) and grid[y+(dy),x] == Pieces.Blank and grid[y+(2*dy),x] == Pieces.Blank ) :
             # If the pawn hasn't moved yet, it can move two spaces if that space is open
             coords.add( (x, y+(2*dy) ) )
             
@@ -409,6 +414,9 @@ class Chess:
             grid = self.grid
         return (Chess.dimension * Chess.dimension) - sum( [ el == Pieces.Blank for el in grid.flatten() ] )
     
+    def grid_distance(self, grid_A, grid_B):
+        pass
+    
     # Clone the chess board and return the new instance
     def copy(self):
         clone = Chess()
@@ -421,6 +429,14 @@ class Chess:
     
     def to_string(self, grid):
         return ",".join( [ el.value for el in grid.flatten() ] )
+    
+    def grid_from_string(self, representation):
+        grid = np.array( self.grid )
+        hold = np.array( representation.split(",") ).reshape( (Chess.dimension, Chess.dimension) )
+        for y in range(Chess.dimension):
+            for x in range(Chess.dimension):
+                grid[y,x] = Pieces.from_symbol( hold[y,x] )
+        return grid
     
     # String representation of the chess board
     def __str__(self):
