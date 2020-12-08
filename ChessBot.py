@@ -103,8 +103,6 @@ class ChessBot:
     
     # Randomly choose a next move based on the current grid
     def random_choice(self, grid):
-        # TODO : FIX BUG!!!!!
-        # generate_children should act the same regardless of which Chess object uses it, but this isn't
         children = self.board.generate_valid_children( self.side, grid )
         if len(children) == 0:
             print( self.board.to_string(grid) )

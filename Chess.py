@@ -205,7 +205,7 @@ class Chess:
             return self.knight_move(coord, grid)
         if piece == Pieces.WhiteKingBishop or piece == Pieces.WhiteQueenBishop \
             or piece == Pieces.BlackKingBishop or piece == Pieces.BlackQueenBishop:
-                return self.bishop_move(coord, grid)
+            return self.bishop_move(coord, grid)
         if piece == Pieces.WhiteQueen or piece == Pieces.BlackQueen:
             return self.queen_move(coord, grid)
         if piece == Pieces.WhiteKing or piece == Pieces.BlackKing:
@@ -219,7 +219,7 @@ class Chess:
             grid = self.grid
             
         x,y = coord
-        color = Pieces.color( self.grid[y,x] )
+        color = Pieces.color( grid[y,x] )
         coords = set()
         self.crawl_direction(x+1, y, 1, 0, coords, color, grid)
         self.crawl_direction(x-1, y, -1, 0, coords, color, grid)
