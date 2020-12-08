@@ -419,6 +419,9 @@ class Chess:
     def copy_grid(self, grid):
         return np.array(grid)
     
+    def to_string(self, grid):
+        return ",".join( [ el.value for el in grid.flatten() ] )
+    
     # String representation of the chess board
     def __str__(self):
         return ",".join( [ el.value for el in self.grid.flatten() ] )
