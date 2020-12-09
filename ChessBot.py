@@ -139,9 +139,74 @@ class ChessBot:
             print( self.board.to_string(grid) )
         return random.choices( children, probs )[0]
     
+    # Traverses down several layers of moves and finds the one with the highest score at that layer
+    def score_choice(self, grid, max_layers, use_highest):
+        children = self.board.generate_valid_children( self.side, grid )
+        best = None
+        highest = 0
+        
+        for child in children:
+            # Use 2 as layers since this iteration over children is the first layer itself
+            score = self.traverse_layers( child, 2, max_layers, self.side, self.side, use_highest=use_highest)
+            
+            # The child with the best score becomes the current best
+            if score > highest:
+                highest = score
+                best = child
+        
+        # If no child was chosen, that means that absolutely none of the future generations
+        # have scores yet. So just randomly choose
+        if best is None:
+            best = self.random_choice( grid )
+        
+        return best
+    
+    # Traverse to deeper layers to get scores of future generations of boards
+    # Parameters:
+    #   grid                    ->  numpy array representing the chess board
+    #   layer                   ->  The current depth into the traversal
+    #   max_layers              ->  The deepest level to traverse to
+    #   start_side              ->  The side we're ultimately looking for. Multiply by the
+    #                               score so we're always maximizing
+    #   side                    ->  The side making the move. Switches on each recursive call
+    #   use_highest             ->  Return the highest score found between the start and deepest layer
+    #                               If False, sum all the scores from the deepest layer up
+    # Returns:
+    #   score                   ->  The score found with the parameters given. Used to decide which traversal was best
+    def traverse_layers(self, grid, layer, max_layers, start_side, side, use_highest=True):
+        children = self.board.generate_valid_children( side, grid )
+        score = start_side * self.get_score( self.board.to_string( grid ) )     # Use current score as the base
+        
+        # Iterate through the children to get the scores
+        for child in children:
+            temp_score = 0
+            
+            if layer == max_layers:
+                temp_score = start_side * self.get_score( self.board.to_string( child ) )
+            else:
+                temp_score = self.traverse_layers( child, layer+1, max_layers, start_side, Pieces.enemy_color(side), use_highest )
+            
+            if not use_highest:
+                # Add up the scores returning from the deepest layer
+                score += temp_score
+            elif temp_score > score:
+                # Only keep track of the highest score from the deepest layer
+                score = temp_score
+        
+        return score
+    
     # Select the next move to play
+    # Parameters:
+    #   grid                    ->  numpy array representing the chess board to make a move on
+    #   choices                 ->  How to choose the next move
+    #                               Options are: random, greedy, greedy probabilistic, max score, sum score
+    #   layers                  ->  Number of layers to traverse in the "max score" and "sum score" options
+    #   randomize               ->  Allows the algorithm a chance to make a random move, regardless of which move choice is given
+    #                               Mostly used for training. Any value below 0 makes it impossible. Between 0 and 1 give some chance
+    # Returns:
+    #   child                   ->  numpy array representing the board after moving
     def select_move(self, grid, choice="random", layers=5, randomize=-1):
-        if choice != "random" and choice != "greedy" and choice != "score" \
+        if choice != "random" and choice != "greedy" and choice != "max score" \
             and choice != "sum score" and choice != "greedy prob":
             print("Unrecognized parameter for choice: ",choice)
         
@@ -151,8 +216,12 @@ class ChessBot:
             return self.greedy_choice( grid )
         elif choice == "greedy prob":
             return self.greedy_pobabilistic_choice( grid )
+        elif choice == "max score":
+            return self.score_choice( grid, layers, True )
+        elif choice == "sum score":
+            return self.score_choice( grid, layers, False )
         
-        # TODO : Implement other choice options
+        # TODO : Implement other choice options?
     
     def move(self, board, choice="random", layers=5, randomize=-1):
         board.replace( self.select_move( board.grid, choice, layers, randomize=randomize) )
