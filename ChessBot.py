@@ -134,7 +134,8 @@ class ChessBot:
         children = self.board.generate_valid_children( self.side, grid )
         probs = [ 1 for i in range(len(children)) ]
         for i in range(len(children)):
-            probs[i] += np.ceil( self.get_score( self.board.to_string( children[i] ) ) )
+            # By multiplying the score by the value of the side, we can always look for the max
+            probs[i] += np.ceil( self.side.value * self.get_score( self.board.to_string( children[i] ) ) )
         if len(children) == 0:
             print( self.board.to_string(grid) )
         return random.choices( children, probs )[0]
@@ -174,17 +175,18 @@ class ChessBot:
     # Returns:
     #   score                   ->  The score found with the parameters given. Used to decide which traversal was best
     def traverse_layers(self, grid, layer, max_layers, start_side, side, use_highest=True):
+        score = start_side.value * self.get_score( self.board.to_string( grid ) )     # Use current score as the base
+        
+        if layer >= max_layers:
+            return score
+        
         children = self.board.generate_valid_children( side, grid )
-        score = start_side * self.get_score( self.board.to_string( grid ) )     # Use current score as the base
         
         # Iterate through the children to get the scores
         for child in children:
             temp_score = 0
             
-            if layer == max_layers:
-                temp_score = start_side * self.get_score( self.board.to_string( child ) )
-            else:
-                temp_score = self.traverse_layers( child, layer+1, max_layers, start_side, Pieces.enemy_color(side), use_highest )
+            temp_score = self.traverse_layers( child, layer+1, max_layers, start_side, Pieces.enemy_color(side), use_highest )
             
             if not use_highest:
                 # Add up the scores returning from the deepest layer
