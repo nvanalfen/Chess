@@ -11,14 +11,6 @@ import random
 from Chess import Pieces, Chess
 import os
 
-# TODO : Implement the following functions
-# select_move
-# play_move
-# train
-#
-#
-#
-
 class ChessBot:
     def __init__(self, side=Pieces.White, learning_file_read_path=None, learning_file_save_path=None,
                  win_score=100, propagation_reduction=1.1, divide_propagate=True):
@@ -69,8 +61,9 @@ class ChessBot:
     
     # Write the weights to a file for use later
     def write_learning_file(self):
-        df = pd.DataFrame.from_dict(self.weights, orient="index", columns=["weight"])
-        df.to_csv( self.save_path )
+        if not self.save_path is None:
+            df = pd.DataFrame.from_dict(self.weights, orient="index", columns=["weight"])
+            df.to_csv( self.save_path )
     
     def get_score(self, configuration):
         if not configuration in self.weights:
@@ -141,14 +134,14 @@ class ChessBot:
         return random.choices( children, probs )[0]
     
     # Traverses down several layers of moves and finds the one with the highest score at that layer
-    def score_choice(self, grid, max_layers, use_highest):
+    def score_choice(self, grid, max_layers, use_highest, return_at_zero):
         children = self.board.generate_valid_children( self.side, grid )
         best = None
         highest = 0
         
         for child in children:
             # Use 2 as layers since this iteration over children is the first layer itself
-            score = self.traverse_layers( child, 2, max_layers, self.side, self.side, use_highest=use_highest)
+            score = self.traverse_layers( child, 2, max_layers, self.side, self.side, use_highest=use_highest, return_at_zero=return_at_zero)
             
             # The child with the best score becomes the current best
             if score > highest:
@@ -172,11 +165,18 @@ class ChessBot:
     #   side                    ->  The side making the move. Switches on each recursive call
     #   use_highest             ->  Return the highest score found between the start and deepest layer
     #                               If False, sum all the scores from the deepest layer up
+    #   return_at_zero          ->  If a zero score is encountered, don't bother traversing any farther
+    #                               This may miss some scores in deeper layers that were not found through the
+    #                               current state, but should greatly speed up move selection
     # Returns:
     #   score                   ->  The score found with the parameters given. Used to decide which traversal was best
-    def traverse_layers(self, grid, layer, max_layers, start_side, side, use_highest=True):
+    def traverse_layers(self, grid, layer, max_layers, start_side, side, use_highest=True, return_at_zero=True):
         score = start_side.value * self.get_score( self.board.to_string( grid ) )     # Use current score as the base
         
+        # If we are at the deepest layer return the score
+        # If the current score is 0, there may be moves later that were not connected to this state?
+        # or should I just return early to speed up computation?
+        # TODO : think about this. Maybe include another variable to return at 0 scores
         if layer >= max_layers:
             return score
         
@@ -207,7 +207,7 @@ class ChessBot:
     #                               Mostly used for training. Any value below 0 makes it impossible. Between 0 and 1 give some chance
     # Returns:
     #   child                   ->  numpy array representing the board after moving
-    def select_move(self, grid, choice="random", layers=5, randomize=-1):
+    def select_move(self, grid, choice="random", layers=5, randomize=-1, return_at_zero=True):
         if choice != "random" and choice != "greedy" and choice != "max score" \
             and choice != "sum score" and choice != "greedy prob":
             print("Unrecognized parameter for choice: ",choice)
@@ -219,14 +219,16 @@ class ChessBot:
         elif choice == "greedy prob":
             return self.greedy_pobabilistic_choice( grid )
         elif choice == "max score":
-            return self.score_choice( grid, layers, True )
+            return self.score_choice( grid, layers, True, return_at_zero=return_at_zero )
         elif choice == "sum score":
-            return self.score_choice( grid, layers, False )
+            return self.score_choice( grid, layers, False, return_at_zero=return_at_zero )
         
         # TODO : Implement other choice options?
     
-    def move(self, board, choice="random", layers=5, randomize=-1):
-        board.replace( self.select_move( board.grid, choice, layers, randomize=randomize) )
+    def move(self, board, choice="random", layers=5, randomize=-1, return_at_zero=True):
+        board.replace( self.select_move( board.grid, choice, layers, randomize=randomize, return_at_zero=return_at_zero ) )
+
+# TODO : Make the key for the weights include the initial state and the motion. This may avoid local minima and moving back to the same point
     
     # Train the bot
     # Parameters:
@@ -237,9 +239,15 @@ class ChessBot:
     #   randomize                   ->  Regardless of choice selection type, this number will give a probability
     #                                   of randomly selecting a move to avoid taking the same path every time
     #                                   Setting this number below 0 gives no chance, between 0 and 1 will give that probablitity
+    #   asymmetric                  ->  Side to assign a different strategy to. If None, both White and Black
+    #                                   train using the same choice method. If one side is specified,
+    #                                   that side trains with a different choice strategy
+    #   asymmetric_choice           ->  Move choosing method to use for the side specified by
+    #                                   asymmetric
     # Returns:
     #   None. The weights are stored and saved
-    def train(self, choice="greedy prob", layers=5, training_loops=100, save_every=5, randomize=-1):
+    def train(self, choice="greedy prob", layers=5, training_loops=100, save_every=5, randomize=-1,
+              return_at_zero=True, asymmetric=None, asymmetric_choice="random"):
         
         white_wins = 0
         black_wins = 0
@@ -258,21 +266,23 @@ class ChessBot:
             winner = Pieces.Neutral
             
             while True:
-                if self.side == Pieces.White:
-                    self.side = Pieces.Black
-                else:
-                    self.side = Pieces.White
+                # Flip sides
+                self.side = Pieces.enemy_color( self.side )
                 
                 prev_count = current_count
                 
-                self.move( board, choice=choice, randomize=randomize )
+                # If the choosing method is symmetric or the current side is not the different one specified
+                if asymmetric is None or asymmetric != self.side:
+                    self.move( board, choice=choice, randomize=randomize, return_at_zero=return_at_zero, layers=layers )
+                else:
+                    self.move( board, choice=asymmetric_choice, randomize=randomize, return_at_zero=return_at_zero, layers=layers )
                 configurations.append( str(board) )
                 self.debug_configs.append( str(board) )
-                
+                                
                 if board.checkmate( Pieces.enemy_color( self.side ) ):
                     winner = self.side
                     break
-                
+                                
                 current_count = board.count_pieces()
                 if current_count == prev_count:
                     captureless += 1
@@ -294,5 +304,4 @@ class ChessBot:
             
             if i%save_every == 0:
                 self.write_learning_file()
-    
     

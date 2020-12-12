@@ -115,9 +115,9 @@ class Chess:
     def generate_valid_children(self, turn, grid=None):
         if grid is None:
             grid = self.grid
-            
+        
         children = []
-        for child in self.generate_children(turn, grid):
+        for child in self.generate_children(turn, grid=grid):
             if not self.check(child, turn):
                 children.append( child )
         return children
@@ -180,6 +180,24 @@ class Chess:
             for x in range(Chess.dimension):
                 if Pieces.color( grid[y,x] ) == side:
                     coords.add( (x,y) )
+        return coords
+    
+    # Get the coordinates of a specific piece
+    # Parameters:
+    # TODO : finish commenting this better
+    def get_specific_piece_coordinate(self, side, piece, grid=None, single=False):
+        if grid is None:
+            grid = self.grid
+        coords = set()
+        
+        for y in range(Chess.dimension):
+            for x in range(Chess.dimension):
+                if grid[y,x] == piece:
+                    coords.add( (x,y) )
+                    if single:
+                        # Just to save a little time if only looking for one piece
+                        # This function is mostly for finding a king, so this should work
+                        return coords
         return coords
     
     def get_all_possible_moves(self, turn):
@@ -351,27 +369,32 @@ class Chess:
         
         return children
     
+    # TODO : I have updated the efficiency, keep an eye on this and make sure it works
+    # If any transitions have their endpoint on the king, it's check
     # Checks to see if the current position puts a certain side in check
     # Check is true if any of the children grids are missing the king
     # Parameters:
-    #   board               ->  The chess board layout to check. numpy array
+    #   grid                ->  The chess board layout to check. numpy array
     #   turn                ->  The color to see if its in check. Pieces.Black or Pieces.White
     # Returns:
     #   check               ->  True if the player with the color of the turn variable is in check
-    def check(self, board, turn):
-        
-        # Determing which king is the 
+    def check(self, grid, turn):
         king = None
         if turn == Pieces.White:
             king = Pieces.WhiteKing
         else:
             king = Pieces.BlackKing
         
-        # Check all of the children to see if any of them are missing the king
-        for child in self.generate_children( Pieces.enemy_color(turn), board ):
-            if not king in child.flatten():
-                return True
+        # Get the coordinate of the king
+        coords = self.get_specific_piece_coordinate(turn, king, grid=grid, single=True)
+        if len(coords) == 0:
+            return True
+        coord = coords.pop()
         
+        # If any of the move targets are on the king, it's in check
+        for source, target in self.generate_transitions(turn, grid=grid):
+            if coord == target:
+                return True
         return False
     
     # Checks to see if the current grid is in checkmate for the player of the given color
