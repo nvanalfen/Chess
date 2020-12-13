@@ -65,6 +65,9 @@ class ChessBot:
             df = pd.DataFrame.from_dict(self.weights, orient="index", columns=["weight"])
             df.to_csv( self.save_path )
     
+    def make_key(self, grid_A, grid_B):
+        return self.board.to_string(grid_A) + ":" + self.board.to_string(grid_B)
+    
     def get_score(self, configuration):
         if not configuration in self.weights:
             return 0
@@ -73,7 +76,7 @@ class ChessBot:
     # After finishing a game, if one of the sides won, 
     def score_results(self, board_configurations, winner):
         if winner == Pieces.Neutral:
-            # If it was a tie, no reason to waste time propagating no score
+            # If it was a tie, no reason to waste time propagating score of 0
             return
         
         max_ind = len(board_configurations)-1
@@ -108,7 +111,8 @@ class ChessBot:
         best_score = 0
         
         for child in children:
-            score = self.get_score( self.board.to_string(child) )
+            #score = self.get_score( self.board.to_string(child) )
+            score = self.get_score( self.make_key(grid,child) )
             
             # White wants to maximize score, Black wants to minimize
             # By multiplying the score by the value of the side, we can always look for the max
@@ -128,7 +132,8 @@ class ChessBot:
         probs = [ 1 for i in range(len(children)) ]
         for i in range(len(children)):
             # By multiplying the score by the value of the side, we can always look for the max
-            probs[i] += np.ceil( self.side.value * self.get_score( self.board.to_string( children[i] ) ) )
+            #probs[i] += np.ceil( self.side.value * self.get_score( self.board.to_string( children[i] ) ) )
+            probs[i] += np.ceil( self.side.value * self.get_score( self.make_key(grid, children[i]) ) )
         if len(children) == 0:
             print( self.board.to_string(grid) )
         return random.choices( children, probs )[0]
@@ -141,7 +146,8 @@ class ChessBot:
         
         for child in children:
             # Use 2 as layers since this iteration over children is the first layer itself
-            score = self.traverse_layers( child, 2, max_layers, self.side, self.side, use_highest=use_highest, return_at_zero=return_at_zero)
+            #score = self.traverse_layers( child, 2, max_layers, self.side, self.side, use_highest=use_highest, return_at_zero=return_at_zero)
+            score = self.traverse_layers( child, 2, max_layers, self.side, self.side, use_highest=use_highest, return_at_zero=return_at_zero, parent_grid=grid)
             
             # The child with the best score becomes the current best
             if score > highest:
@@ -170,14 +176,15 @@ class ChessBot:
     #                               current state, but should greatly speed up move selection
     # Returns:
     #   score                   ->  The score found with the parameters given. Used to decide which traversal was best
-    def traverse_layers(self, grid, layer, max_layers, start_side, side, use_highest=True, return_at_zero=True):
-        score = start_side.value * self.get_score( self.board.to_string( grid ) )     # Use current score as the base
+    def traverse_layers(self, grid, layer, max_layers, start_side, side, use_highest=True, return_at_zero=True, parent_grid=None):
+        #score = start_side.value * self.get_score( self.board.to_string( grid ) )     # Use current score as the base
+        score = start_side.value * self.get_score( self.make_key(parent_grid, grid) )     # Use current score as the base
         
         # If we are at the deepest layer return the score
         # If the current score is 0, there may be moves later that were not connected to this state?
         # or should I just return early to speed up computation?
         # TODO : think about this. Maybe include another variable to return at 0 scores
-        if layer >= max_layers:
+        if layer >= max_layers or (return_at_zero and score == 0):
             return score
         
         children = self.board.generate_valid_children( side, grid )
@@ -186,7 +193,8 @@ class ChessBot:
         for child in children:
             temp_score = 0
             
-            temp_score = self.traverse_layers( child, layer+1, max_layers, start_side, Pieces.enemy_color(side), use_highest )
+            #temp_score = self.traverse_layers( child, layer+1, max_layers, start_side, Pieces.enemy_color(side), use_highest )
+            temp_score = self.traverse_layers( child, layer+1, max_layers, start_side, Pieces.enemy_color(side), use_highest, parent_grid=grid )
             
             if not use_highest:
                 # Add up the scores returning from the deepest layer
@@ -271,13 +279,17 @@ class ChessBot:
                 
                 prev_count = current_count
                 
+                # Added
+                start_config = str(board)
+                
                 # If the choosing method is symmetric or the current side is not the different one specified
                 if asymmetric is None or asymmetric != self.side:
                     self.move( board, choice=choice, randomize=randomize, return_at_zero=return_at_zero, layers=layers )
                 else:
                     self.move( board, choice=asymmetric_choice, randomize=randomize, return_at_zero=return_at_zero, layers=layers )
-                configurations.append( str(board) )
-                self.debug_configs.append( str(board) )
+                configurations.append( start_config+":"+str(board) )
+                #configurations.append( str(board) )
+                #self.debug_configs.append( str(board) )
                                 
                 if board.checkmate( Pieces.enemy_color( self.side ) ):
                     winner = self.side
@@ -304,4 +316,14 @@ class ChessBot:
             
             if i%save_every == 0:
                 self.write_learning_file()
+                
+        self.write_learning_file()
     
+    def reconstruct_game(self):
+        blank = np.array( ["","","","","","","",""] )
+        game = np.array(blank)
+        for configuration in self.debug_configs:
+            temp = np.array( configuration.split(",") ).reshape( (Chess.dimension, Chess.dimension) )
+            game = np.vstack((game,blank,temp))
+        df = pd.DataFrame(game)
+        df.to_csv("game.csv")
