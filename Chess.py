@@ -391,8 +391,8 @@ class Chess:
             return True
         coord = coords.pop()
         
-        # If any of the move targets are on the king, it's in check
-        for source, target in self.generate_transitions(turn, grid=grid):
+        # If any of the enemy move targets are on the king, it's in check
+        for source, target in self.generate_transitions( Pieces.enemy_color(turn), grid=grid):
             if coord == target:
                 return True
         return False
@@ -465,5 +465,5 @@ class Chess:
     def __str__(self):
         return ",".join( [ el.value for el in self.grid.flatten() ] )
     
-    def printable_grid(self):
+    def printable_grid(self, grid=None):
         return np.array( (self.__str__()).split(",") ).reshape( (Chess.dimension, Chess.dimension) )
