@@ -11,7 +11,6 @@ import random
 from Chess import Pieces, Chess
 import os
 
-# TODO : Implement discount factor for forward searching
 # TODO : Implement complex part of weight to account for ties?
 
 class ChessBot:
@@ -59,12 +58,15 @@ class ChessBot:
             table = pd.read_csv( self.read_path, index_col=0 )
             
             for ind in table.index:
-                self.weights[ ind ] = table["weight"][ind]
+                #self.weights[ ind ] = table["weight"][ind]
+                self.weights[ ind ] = complex( table["real"][ind], table["imaginary"][ind] )
     
     # Write the weights to a file for use later
     def write_learning_file(self):
         if not self.save_path is None:
-            df = pd.DataFrame.from_dict(self.weights, orient="index", columns=["weight"])
+            save_dict = {key:[ self.weights[key].real, self.weights[key].imag ] for key in self.weights}
+            #df = pd.DataFrame.from_dict(self.weights, orient="index", columns=["weight"])
+            df = pd.DataFrame.from_dict(save_dict, orient="index", columns=["real","imaginary"])
             df.to_csv( self.save_path )
     
     def make_key(self, grid_A, grid_B):
@@ -77,12 +79,12 @@ class ChessBot:
     
     # After finishing a game, if one of the sides won, 
     def score_results(self, board_configurations, winner):
+        score = (self.score)*winner.value               # White win gets positive score, Black gets negative
         if winner == Pieces.Neutral:
-            # If it was a tie, no reason to waste time propagating score of 0
-            return
+            score = complex(0, self.score)              # Give ties an imaginary score
         
         max_ind = len(board_configurations)-1
-        score = (self.score)*winner.value               # White win gets positive score, Black gets negative
+        
         i = 0
         
         for i in range(len(board_configurations)):
@@ -111,11 +113,12 @@ class ChessBot:
         
         for child in children:
             score = self.get_score( self.board.to_string(child) )
+            score = ( self.side.value * score.real ) - ( score.imag )       # Subtract the imaginary score from the absolute real, this should help avoid ties
             #score = self.get_score( self.make_key(grid,child) )
             
             # White wants to maximize score, Black wants to minimize
             # By multiplying the score by the value of the side, we can always look for the max
-            if self.side.value * score > best_score:
+            if score > best_score:
                 best_grid = child
                 best_score = score
         
@@ -131,8 +134,10 @@ class ChessBot:
         probs = [ 1 for i in range(len(children)) ]
         for i in range(len(children)):
             # By multiplying the score by the value of the side, we can always look for the max
-            probs[i] += np.ceil( self.side.value * self.get_score( self.board.to_string( children[i] ) ) )
-            probs = [ val+abs(min(probs)) for val in probs ]        # accounts for negative weights
+            score = self.get_score( self.board.to_string( children[i] ) )
+            score = ( self.side.value * score.real ) - ( score.imag )
+            probs[i] += np.ceil( score  )
+        probs = [ val+abs(min(probs)) for val in probs ]        # accounts for negative weights
             #probs[i] += np.ceil( self.side.value * self.get_score( self.make_key(grid, children[i]) ) )
         if len(children) == 0:
             print( self.board.to_string(grid) )
@@ -178,7 +183,8 @@ class ChessBot:
     # Returns:
     #   score                   ->  The score found with the parameters given. Used to decide which traversal was best
     def traverse_layers(self, grid, layer, max_layers, start_side, side, discount, use_highest=True, return_at_zero=True):
-        score = start_side.value * self.get_score( self.board.to_string( grid ) ) * discount    # Use current score as the base
+        score = self.get_score( self.board.to_string( grid ) ) * discount    # Use current score as the base
+        score = ( start_side.value * score.real ) - ( score.imag )
         #score = start_side.value * self.get_score( self.make_key(parent_grid, grid) )     # Use current score as the base
         
         # If we are at the deepest layer return the score
