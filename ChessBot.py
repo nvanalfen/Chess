@@ -15,7 +15,7 @@ import os
 
 class ChessBot:
     def __init__(self, side=Pieces.White, learning_file_read_path=None, learning_file_save_path=None,
-                 win_score=100, discount=0.9):
+                 win_score=100, discount=0.9, real_only=False, zero_tol=None):
         self.read_path = None
         self.save_path = None
         self.weights = {}
@@ -25,6 +25,8 @@ class ChessBot:
         self.check = Pieces.Neutral                                     # The status of whether or not one of the sides is in check. Options are Neutral (no check), White, and Black
         self.checkmate = Pieces.Neutral                                 # Same as check, but with checkmate
         self.side = side                                                # Which side the bot is playing for
+        self.real_only = real_only                                      # Use only the real part of the score. Imaginary part represents ties
+        self.zero_tol = zero_tol
         
         self.debug_configs = []
         
@@ -75,7 +77,12 @@ class ChessBot:
     def get_score(self, configuration):
         if not configuration in self.weights:
             return 0
-        return self.weights[ configuration ]
+        score = self.weights[ configuration ]
+        if not self.zero_tol is None and score.real < self.zero_tol and score.imag < self.zero_tol:
+            return 0
+        if self.real_only:
+            return score.real
+        return score
     
     # After finishing a game, if one of the sides won, 
     def score_results(self, board_configurations, winner):
