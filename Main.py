@@ -8,6 +8,7 @@ Created on Sat Dec  5 17:54:41 2020
 from Chess import Pieces, Chess
 import time
 import numpy as np
+import pandas as pd
 
 def test(board):
     start = time.time()
