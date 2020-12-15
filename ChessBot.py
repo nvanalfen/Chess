@@ -11,18 +11,17 @@ import random
 from Chess import Pieces, Chess
 import os
 
-# TODO : Revert back to single state weights
 # TODO : Implement discount factor for forward searching
+# TODO : Implement complex part of weight to account for ties?
 
 class ChessBot:
     def __init__(self, side=Pieces.White, learning_file_read_path=None, learning_file_save_path=None,
-                 win_score=100, propagation_reduction=1.1, divide_propagate=True):
+                 win_score=100, discount=0.9):
         self.read_path = None
         self.save_path = None
         self.weights = {}
         self.score = win_score                                          # The score to give a winning grid for learning
-        self.propagation = propagation_reduction                        # Value to reduce score by on each step backwards during scoring while learning
-        self.divide = divide_propagate                                  # Divide the score by self.propagation each step back. If False, subtract 
+        self.discount = discount                                        # Proportion of score to keep on each layer traversing back (to score) or forward (to estimate reward)
         self.board = Chess()                                            # The chess board to play on
         self.check = Pieces.Neutral                                     # The status of whether or not one of the sides is in check. Options are Neutral (no check), White, and Black
         self.checkmate = Pieces.Neutral                                 # Same as check, but with checkmate
@@ -95,10 +94,7 @@ class ChessBot:
             i += 1                                      # Move backwards towards the front of the list
             
             # Lower the score as you get farther away from the winning board
-            if self.divide:
-                score /= self.propagation
-            else:
-                score -= self.propagation
+            score *= self.discount
     
     # Randomly choose a next move based on the current grid
     def random_choice(self, grid):
@@ -136,6 +132,7 @@ class ChessBot:
         for i in range(len(children)):
             # By multiplying the score by the value of the side, we can always look for the max
             probs[i] += np.ceil( self.side.value * self.get_score( self.board.to_string( children[i] ) ) )
+            probs = [ val+abs(min(probs)) for val in probs ]        # accounts for negative weights
             #probs[i] += np.ceil( self.side.value * self.get_score( self.make_key(grid, children[i]) ) )
         if len(children) == 0:
             print( self.board.to_string(grid) )
@@ -146,11 +143,12 @@ class ChessBot:
         children = self.board.generate_valid_children( self.side, grid )
         best = None
         highest = -np.inf
+        discount = 1                    # No discount on the first layer, then discount by self.discount each subsequent
         
         for child in children:
             # Use 2 as layers since this iteration over children is the first layer itself
             #score = self.traverse_layers( child, 2, max_layers, self.side, self.side, use_highest=use_highest, return_at_zero=return_at_zero)
-            score = self.traverse_layers( child, 2, max_layers, self.side, self.side, use_highest=use_highest, return_at_zero=return_at_zero, parent_grid=grid)
+            score = self.traverse_layers( child, 2, max_layers, self.side, Pieces.enemy_color( self.side ), discount, use_highest=use_highest, return_at_zero=return_at_zero)
             
             # The child with the best score becomes the current best
             if score > highest:
@@ -179,8 +177,8 @@ class ChessBot:
     #                               current state, but should greatly speed up move selection
     # Returns:
     #   score                   ->  The score found with the parameters given. Used to decide which traversal was best
-    def traverse_layers(self, grid, layer, max_layers, start_side, side, use_highest=True, return_at_zero=True):
-        score = start_side.value * self.get_score( self.board.to_string( grid ) )     # Use current score as the base
+    def traverse_layers(self, grid, layer, max_layers, start_side, side, discount, use_highest=True, return_at_zero=True):
+        score = start_side.value * self.get_score( self.board.to_string( grid ) ) * discount    # Use current score as the base
         #score = start_side.value * self.get_score( self.make_key(parent_grid, grid) )     # Use current score as the base
         
         # If we are at the deepest layer return the score
@@ -197,7 +195,7 @@ class ChessBot:
             #temp_score = -np.inf
             
             #temp_score = self.traverse_layers( child, layer+1, max_layers, start_side, Pieces.enemy_color(side), use_highest )
-            temp_score = self.traverse_layers( child, layer+1, max_layers, start_side, Pieces.enemy_color(side), use_highest )
+            temp_score = self.traverse_layers( child, layer+1, max_layers, start_side, Pieces.enemy_color(side), discount*self.discount, use_highest )
             
             if not use_highest:
                 # Add up the scores returning from the deepest layer
