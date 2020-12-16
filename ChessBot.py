@@ -84,6 +84,19 @@ class ChessBot:
             return score.real
         return score
     
+    def eliminate_zeros(self, tol=None):
+        if tol is None:
+            tol = self.zero_tol
+        if tol is None:
+            return
+        
+        remove_keys = []
+        for key in self.weights:
+            if self.weights[key].real < tol and self.weights[key].imag < tol:
+                remove_keys.append( key )
+        for key in remove_keys:
+            del self.weights[key]
+    
     # After finishing a game, if one of the sides won, 
     def score_results(self, board_configurations, winner):
         score = (self.score)*winner.value               # White win gets positive score, Black gets negative
