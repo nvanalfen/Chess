@@ -330,7 +330,7 @@ class ChessBot:
     # Returns:
     #   None. The weights are stored and saved
     def train(self, choice="greedy prob", layers=5, training_loops=100, save_every=5, randomize=-1,
-              return_at_zero=True, asymmetric=None, asymmetric_choice="random"):
+              return_at_zero=True, asymmetric=None, asymmetric_choice="random", first_move="greedy prob"):
         
         white_wins = 0
         black_wins = 0
@@ -347,6 +347,7 @@ class ChessBot:
             current_count = 32
             captureless = 0
             winner = Pieces.Neutral
+            moves = 0
             
             while True:
                 # Flip sides
@@ -358,13 +359,16 @@ class ChessBot:
                 #start_config = str(board)
                 
                 # If the choosing method is symmetric or the current side is not the different one specified
-                if asymmetric is None or asymmetric != self.side:
+                if not first_move is None and moves == 0:
+                    self.move( board, choice=first_move, randomize=randomize, return_at_zero=return_at_zero, layers=layers )
+                elif asymmetric is None or asymmetric != self.side:
                     self.move( board, choice=choice, randomize=randomize, return_at_zero=return_at_zero, layers=layers )
                 else:
                     self.move( board, choice=asymmetric_choice, randomize=randomize, return_at_zero=return_at_zero, layers=layers )
                 #configurations.append( start_config+":"+str(board) )
                 configurations.append( str(board) )
                 #self.debug_configs.append( str(board) )
+                moves += 1
                                 
                 if board.checkmate( Pieces.enemy_color( self.side ) ):
                     winner = self.side
