@@ -266,8 +266,52 @@ class ChessBot:
 # TODO : set option for backup choice selection
 
     def play_game(self, board, choice="greedy prob", layers=5, training_loops=100, save_every=5, randomize=-1,
-              return_at_zero=True, asymmetric=None, asymmetric_choice="random"):
-        pass
+              return_at_zero=True, asymmetric=None, asymmetric_choice="random", first_move=None):
+        
+        configurations = []
+        self.side = Pieces.Black
+        prev_count = 32
+        current_count = 32
+        captureless = 0
+        winner = Pieces.Neutral
+        moves = 0
+        self.debug_configs = []
+        
+        while True:
+            # Flip sides
+            self.side = Pieces.enemy_color( self.side )
+            
+            prev_count = current_count
+            
+            # Added
+            #start_config = str(board)
+            
+            # If the choosing method is symmetric or the current side is not the different one specified
+            if moves == 0 and not first_move is None:
+                self.move( board, choice=first_move, randomize=randomize, return_at_zero=return_at_zero, layers=layers )
+            elif asymmetric is None or asymmetric != self.side:
+                self.move( board, choice=choice, randomize=randomize, return_at_zero=return_at_zero, layers=layers )
+            else:
+                self.move( board, choice=asymmetric_choice, randomize=randomize, return_at_zero=return_at_zero, layers=layers )
+            #configurations.append( start_config+":"+str(board) )
+            configurations.append( str(board) )
+            self.debug_configs.append( str(board) )
+            
+            moves += 1
+                            
+            if board.checkmate( Pieces.enemy_color( self.side ) ):
+                winner = self.side
+                break
+                            
+            current_count = board.count_pieces()
+            if current_count == prev_count:
+                captureless += 1
+            else:
+                captureless = 0
+            if captureless == 50:
+                break
+        
+        return winner, configurations
     
     # Train the bot
     # Parameters:
