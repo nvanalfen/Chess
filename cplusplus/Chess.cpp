@@ -9,12 +9,12 @@
 // + move
 // + replace
 // - generateValidChildren
-// - generateChildren
-// - promote
-// - generateTransitions
-// - setPieceCoordinates
-// - setSpecificCoordinates
-// - getPossibleMoves
+// + generateChildren (BUGS)
+// + promote
+// + generateTransitions
+// + getPieceCoordinates
+// - getSpecificCoordinates
+// - getPossibleMoves (WRITTEN BUT UNTESTED)
 // + rookMoves
 // + knightMoves
 // + bishopMoves
@@ -167,8 +167,8 @@ void Chess::move( std::tuple<int, int> source, std::tuple<int, int> target, Boar
         return;                     // Avoid attempting to access out of bounds indices
     }
     
-    grid->insert( grid->index(source_x, source_y), target_x, target_y );        // Move the source to the target
-    grid->insert( Pieces::NEUTRAL, source_x, source_y );                             // Replace the source with a blank space
+    board->insert( board->index(source_x, source_y), target_x, target_y );        // Move the source to the target
+    board->insert( Pieces::NEUTRAL, source_x, source_y );                               // Replace the source with a blank space
 }
 
 // Replace the grid with a new one
@@ -185,53 +185,200 @@ void Chess::replace( Board* board )
 
 std::vector< Board* > Chess::generateValidChildren( Pieces turn, Board* board )
 {
-    return std::vector< Board* >();
+    if( board == NULL )
+    {
+        board = grid;
+    }
+    
+    std::vector< Board* > children = std::vector< Board* >();
+    for( auto child : generateChildren(turn, board) )
+    {
+        if( !check( turn, child ) )
+        {
+            children.push_back( child );
+        }
+    }
+    
+    return children;
 }
 
 std::vector< Board* > Chess::generateChildren( Pieces turn, Board* board )
-{
-    return std::vector< Board* >();
-}
-
-// Promotes a pawn to another piece if it makes it to the other side of the board
-std::vector< Board* > Chess::promote( Board* board, std::tuple<int,int> coord )
-{
-    return std::vector< Board* >();
-}
-
-std::set< std::tuple<int,int> > Chess::generateTransitions( Pieces turn, Board* board )
-{
-    return std::set< std::tuple<int,int> >();
-}
-
-std::set< std::tuple<int,int> > Chess::getPieceCoordinates( Pieces side, Board* board )
-{
-    return std::set< std::tuple<int,int> >();
-}
-
-std::set< std::tuple<int,int> > Chess::getSpecificPieceCoordinates( Pieces side, Pieces piece, Board* board, bool single )
-{
-    return std::set< std::tuple<int,int> >();
-}
-
-std::set< std::tuple<int,int> > Chess::getPossibleMoves( std::tuple<int,int> coord, Pieces color, Board* board )
-{
-    return std::set< std::tuple<int,int> >();
-}
-
-bool Chess::check( Pieces turn, Board* board )
-{
-    return false;
-}
-
-std::set< std::tuple<int,int> >* Chess::rookMoves( std::tuple<int,int> coord, Board* board )
 {
     if( board == NULL )
     {
         board = grid;
     }
     
-    std::set< std::tuple<int,int> >* coords = new std::set< std::tuple<int,int> >();
+    std::set< std::tuple< std::tuple<int,int>, std::tuple<int,int> > > transitions = generateTransitions( turn, board );
+    std::vector< Board* > children = std::vector< Board* >();
+    
+    for( auto pair : transitions )
+    {
+        std::tuple<int,int> source = std::get<0>(pair);
+        std::tuple<int,int> target = std::get<1>(pair);
+        
+        Board* child = new Board(DIMENSION, board);         // Copy the current grid
+        move( source, target, child );                                    // Make the move
+        
+        int tar_x = std::get<0>(target);
+        int tar_y = std::get<1>(target);
+        if( ( child->index(tar_x, tar_y) == Pieces::WHITEPAWN && tar_y == DIMENSION-1 ) 
+            || ( child->index(tar_x, tar_y) == Pieces::BLACKPAWN && tar_y == 0 ) )
+        {
+            std::vector< Board* > promotions = promote( child, target );
+            children.insert( children.end(), promotions.begin(), promotions.end() );
+        }
+        else
+        {
+            children.push_back( child );
+        }
+        
+    }
+    
+    return children;
+}
+
+// Promotes a pawn to another piece if it makes it to the other side of the board
+std::vector< Board* > Chess::promote( Board* board, std::tuple<int,int> coord )
+{
+    if( board == NULL )
+    {
+        board = grid;
+    }
+    
+    int x = std::get<0>(coord);
+    int y = std::get<1>(coord);
+    Pieces piece_color = color( board->index(x, y) );
+    
+    std::set< Pieces > promotions;
+    std::vector< Board* > children = std::vector< Board* >();
+    if( piece_color == Pieces::WHITE )
+    {
+        promotions = { Pieces::WHITEROOK, Pieces::WHITEKNIGHT, Pieces::WHITEQUEEN,
+                Pieces::WHITEBISHOP };
+    }
+    else if( piece_color == Pieces::BLACK )
+    {
+        promotions = { Pieces::BLACKROOK, Pieces::BLACKKNIGHT, Pieces::BLACKQUEEN,
+                Pieces::BLACKBISHOP };
+    }
+    
+    for( auto piece : promotions )
+    {
+        Board* clone = new Board( DIMENSION, board );
+        clone->insert( piece, x, y );
+        children.push_back(clone);
+    }
+    
+    return children;
+}
+
+std::set< std::tuple< std::tuple<int,int>, std::tuple<int,int> > > Chess::generateTransitions( Pieces turn, Board* board )
+{
+    if( board == NULL )
+    {
+        board = grid;
+    }
+    
+    std::set< std::tuple<int,int> > sources = getPieceCoordinates( turn, board );
+    std::set< std::tuple< std::tuple<int,int>, std::tuple<int,int> > > transitions = std::set< std::tuple< std::tuple<int,int>, std::tuple<int,int> > >();
+    
+    for( auto source : sources )
+    {
+        //std::cout << "Source: " << std::get<0>(source) << "," << std::get<1>(source) << std::endl;
+        std::set< std::tuple<int,int> > targets = getPossibleMoves( source, turn, board );
+        for( auto target : targets )
+        {
+            transitions.insert( { source, target } );
+        }
+    }
+    
+    return transitions;
+}
+
+std::set< std::tuple<int,int> > Chess::getPieceCoordinates( Pieces side, Board* board )
+{
+    if( board == NULL )
+    {
+        board = grid;
+    }
+    
+    std::set< std::tuple<int,int> > coords = std::set< std::tuple<int,int> >();
+    
+    for(int j = 0; j < DIMENSION; j++)
+    {
+        for(int i = 0; i < DIMENSION; i++)
+        {
+            if( color( board->index(i,j) ) == side )
+            {
+                coords.insert( {i, j} );
+            }
+        }
+    }
+    
+    return coords;
+}
+
+std::set< std::tuple<int,int> > Chess::getSpecificPieceCoordinates( Pieces side, Pieces piece, Board* board, bool single )
+{
+    if( board == NULL )
+    {
+        board = grid;
+    }
+    
+    std::set< std::tuple<int,int> > coords = std::set< std::tuple<int,int> >();
+    
+    return std::set< std::tuple<int,int> >();
+}
+
+std::set< std::tuple<int,int> > Chess::getPossibleMoves( std::tuple<int,int> coord, Pieces color, Board* board )
+{
+    if( board == NULL )
+    {
+        board = grid;
+    }
+    
+    int x = std::get<0>(coord);
+    int y = std::get<1>(coord);
+    Pieces piece = board->index(x,y);
+    
+    if( piece == Pieces::WHITEPAWN || piece == Pieces::BLACKPAWN )
+    {
+        return pawnMoves( coord, board );
+    }
+    if( piece == Pieces::WHITEROOK || piece == Pieces::BLACKROOK )
+    {
+        return rookMoves( coord, board );
+    }
+    if( piece == Pieces::WHITEKNIGHT || piece == Pieces::BLACKKNIGHT )
+    {
+        return knightMoves( coord, board );
+    }
+    if( piece == Pieces::WHITEBISHOP || piece == Pieces::BLACKBISHOP )
+    {
+        return bishopMoves( coord, board );
+    }
+    if( piece == Pieces::WHITEQUEEN || piece == Pieces::BLACKQUEEN )
+    {
+        return queenMoves( coord, board );
+    }
+    if( piece == Pieces::WHITEKING || piece == Pieces::BLACKKING)
+    {
+        return kingMoves( coord, board );
+    }
+    
+    return std::set< std::tuple<int,int> >();
+    
+}
+
+std::set< std::tuple<int,int> > Chess::rookMoves( std::tuple<int,int> coord, Board* board )
+{
+    if( board == NULL )
+    {
+        board = grid;
+    }
+    
+    std::set< std::tuple<int,int> > coords = std::set< std::tuple<int,int> >();
     
     int source_x = std::get<0>(coord);
     int source_y = std::get<1>(coord);
@@ -245,14 +392,14 @@ std::set< std::tuple<int,int> >* Chess::rookMoves( std::tuple<int,int> coord, Bo
     return coords;
 }
 
-std::set< std::tuple<int,int> >* Chess::knightMoves( std::tuple<int,int> coord, Board* board )
+std::set< std::tuple<int,int> > Chess::knightMoves( std::tuple<int,int> coord, Board* board )
 {
     if( board == NULL )
     {
         board = grid;
     }
     
-    std::set< std::tuple<int,int> >* coords = new std::set< std::tuple<int,int> >();
+    std::set< std::tuple<int,int> > coords = std::set< std::tuple<int,int> >();
     
     int x = std::get<0>(coord);
     int y = std::get<1>(coord);
@@ -268,12 +415,12 @@ std::set< std::tuple<int,int> >* Chess::knightMoves( std::tuple<int,int> coord, 
             // Check moving 2 spaces in x then 1 in y
             if( inBounds(x+d1, y+d2) && color( board->index(x+d1, y+d2) ) != piece_color )
             {
-                coords->insert( {x+d1, y+d2} );
+                coords.insert( {x+d1, y+d2} );
             }
             // Check meving 2 spaces in y then 1 in x
             if( inBounds(x+d2, y+d1) && color( board->index(x+d2, y+d1) ) != piece_color )
             {
-                coords->insert( {x+d2, y+d1} );
+                coords.insert( {x+d2, y+d1} );
             }
             
         }
@@ -283,14 +430,14 @@ std::set< std::tuple<int,int> >* Chess::knightMoves( std::tuple<int,int> coord, 
     
 }
 
-std::set< std::tuple<int,int> >* Chess::bishopMoves( std::tuple<int,int> coord, Board* board )
+std::set< std::tuple<int,int> > Chess::bishopMoves( std::tuple<int,int> coord, Board* board )
 {
     if( board == NULL )
     {
         board = grid;
     }
     
-    std::set< std::tuple<int,int> >* coords = new std::set< std::tuple<int,int> >();
+    std::set< std::tuple<int,int> > coords = std::set< std::tuple<int,int> >();
     
     int source_x = std::get<0>(coord);
     int source_y = std::get<1>(coord);
@@ -304,14 +451,14 @@ std::set< std::tuple<int,int> >* Chess::bishopMoves( std::tuple<int,int> coord, 
     return coords;
 }
 
-std::set< std::tuple<int,int> >* Chess::kingMoves( std::tuple<int,int> coord, Board* board )
+std::set< std::tuple<int,int> > Chess::kingMoves( std::tuple<int,int> coord, Board* board )
 {
     if( board == NULL )
     {
         board = grid;
     }
     
-    std::set< std::tuple<int,int> >* coords = new std::set< std::tuple<int,int> >();
+    std::set< std::tuple<int,int> > coords = std::set< std::tuple<int,int> >();
     
     int x = std::get<0>(coord);
     int y = std::get<1>(coord);
@@ -326,7 +473,7 @@ std::set< std::tuple<int,int> >* Chess::kingMoves( std::tuple<int,int> coord, Bo
             // This condition also prevents staying in place
             if( inBounds( x+(i-1), y+(j-1) ) && piece_color != color( board->index( x+(i-1), y+(j-1) ) ) )
             {
-                coords->insert( { x+(i-1), y+(j-1) } );
+                coords.insert( { x+(i-1), y+(j-1) } );
             }
         }
     }
@@ -335,34 +482,34 @@ std::set< std::tuple<int,int> >* Chess::kingMoves( std::tuple<int,int> coord, Bo
     
 }
 
-std::set< std::tuple<int,int> >* Chess::queenMoves( std::tuple<int,int> coord, Board* board )
+std::set< std::tuple<int,int> > Chess::queenMoves( std::tuple<int,int> coord, Board* board )
 {
     if( board == NULL )
     {
         board = grid;
     }
     
-    std::set< std::tuple<int,int> >* coords = new std::set< std::tuple<int,int> >();
+    std::set< std::tuple<int,int> > coords = std::set< std::tuple<int,int> >();
     
     // The queen's moves are just a combination of the rook's and bishop's
-    std::set< std::tuple<int,int> >* rook_coords = rookMoves( coord, board );
-    std::set< std::tuple<int,int> >* bishop_coords = bishopMoves( coord, board );
+    std::set< std::tuple<int,int> > rook_coords = rookMoves( coord, board );
+    std::set< std::tuple<int,int> > bishop_coords = bishopMoves( coord, board );
     
     // Merge the two results
-    coords->insert( rook_coords->begin(), rook_coords->end() );
-    coords->insert( bishop_coords->begin(), bishop_coords->end() );
+    coords.insert( rook_coords.begin(), rook_coords.end() );
+    coords.insert( bishop_coords.begin(), bishop_coords.end() );
     
     return coords;
 }
 
-std::set< std::tuple<int,int> >* Chess::pawnMoves( std::tuple<int,int> coord, Board* board )
+std::set< std::tuple<int,int> > Chess::pawnMoves( std::tuple<int,int> coord, Board* board )
 {
     if( board == NULL )
     {
         board = grid;
     }
     
-    std::set< std::tuple<int,int> >* coords = new std::set< std::tuple<int,int> >();
+    std::set< std::tuple<int,int> > coords = std::set< std::tuple<int,int> >();
     
     int x = std::get<0>(coord);
     int y = std::get<1>(coord);
@@ -372,27 +519,32 @@ std::set< std::tuple<int,int> >* Chess::pawnMoves( std::tuple<int,int> coord, Bo
     
     if( inBounds(x, y+dy) && board->index( x, y+dy ) == Pieces::NEUTRAL )
     {
-        coords->insert( {x, y+dy} );
+        coords.insert( {x, y+dy} );
     }
     if( ( ( piece_color == Pieces::WHITE && y == 1 ) || ( piece_color == Pieces::BLACK && y == DIMENSION-2 ) ) && 
         inBounds( x, y+(2*dy) ) && ( board->index( x, y+dy ) == Pieces::NEUTRAL ) && ( board->index( x, y+(2*dy) ) == Pieces::NEUTRAL ) )
     {
         // If a pawn hasn't yet moved, it can move up two spaces
-        coords->insert( {x, y+(2*dy)} );
+        coords.insert( {x, y+(2*dy)} );
     }
     
     // Pawns can only attack diagonally
     if( inBounds(x+1, y+dy) && color( board->index( x+1, y+dy ) ) == enemyColor(piece_color) )
     {
-        coords->insert( {x+1, y+dy} );
+        coords.insert( {x+1, y+dy} );
     }
     if( inBounds(x-1, y+dy) && color( board->index( x-1, y+dy ) ) == enemyColor(piece_color) )
     {
-        coords->insert( {x-1, y+dy} );
+        coords.insert( {x-1, y+dy} );
     }
     
     return coords;
     
+}
+
+bool Chess::check( Pieces turn, Board* board )
+{
+    return false;
 }
 
 bool Chess::checkMate( Pieces turn, Board* board )
@@ -405,7 +557,7 @@ bool Chess::inBounds( int x, int y )
     return ( x >= 0 && x < DIMENSION && y >= 0 && y < DIMENSION );
 }
 
-std::set< std::tuple<int,int> >* Chess::crawlDirection( int x, int y, int dx, int dy, std::set< std::tuple<int,int> >* coords, Pieces mover_color, Board* board )
+std::set< std::tuple<int,int> > Chess::crawlDirection( int x, int y, int dx, int dy, std::set< std::tuple<int,int> > coords, Pieces mover_color, Board* board )
 {
     if( board == NULL )
     {
@@ -417,7 +569,7 @@ std::set< std::tuple<int,int> >* Chess::crawlDirection( int x, int y, int dx, in
         return coords;
     }
     
-    coords->insert( {x, y} );
+    coords.insert( {x, y} );
     
     // If we haven't yet taken a piece, we can still move
     if( board->index(x,y) == Pieces::NEUTRAL )

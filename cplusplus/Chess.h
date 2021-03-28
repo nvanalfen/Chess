@@ -30,24 +30,24 @@ class Chess
         std::vector< Board* > generateValidChildren( Pieces turn, Board* board );
         std::vector< Board* > generateChildren( Pieces turn, Board* board );
         std::vector< Board* > promote( Board* board, std::tuple<int,int> coord );
-        std::set< std::tuple<int,int> > generateTransitions( Pieces turn, Board* board );
+        std::set< std::tuple< std::tuple<int,int>, std::tuple<int,int> > > generateTransitions( Pieces turn, Board* board );
         std::set< std::tuple<int,int> > getPieceCoordinates( Pieces side, Board* board );
         std::set< std::tuple<int,int> > getSpecificPieceCoordinates( Pieces side, Pieces piece, Board* board, bool single );
         std::set< std::tuple<int,int> > getPossibleMoves( std::tuple<int,int> coord, Pieces color, Board* board );
         
         // Functions for the moves of the different pieces
-        std::set< std::tuple<int,int> >* rookMoves( std::tuple<int,int> coord, Board* board );
-        std::set< std::tuple<int,int> >* knightMoves( std::tuple<int,int> coord, Board* board );
-        std::set< std::tuple<int,int> >* bishopMoves( std::tuple<int,int> coord, Board* board );
-        std::set< std::tuple<int,int> >* kingMoves( std::tuple<int,int> coord, Board* board );
-        std::set< std::tuple<int,int> >* queenMoves( std::tuple<int,int> coord, Board* board );
-        std::set< std::tuple<int,int> >* pawnMoves( std::tuple<int,int> coord, Board* board );
+        std::set< std::tuple<int,int> > rookMoves( std::tuple<int,int> coord, Board* board );
+        std::set< std::tuple<int,int> > knightMoves( std::tuple<int,int> coord, Board* board );
+        std::set< std::tuple<int,int> > bishopMoves( std::tuple<int,int> coord, Board* board );
+        std::set< std::tuple<int,int> > kingMoves( std::tuple<int,int> coord, Board* board );
+        std::set< std::tuple<int,int> > queenMoves( std::tuple<int,int> coord, Board* board );
+        std::set< std::tuple<int,int> > pawnMoves( std::tuple<int,int> coord, Board* board );
         
         // Auxiliary functions
         bool check( Pieces turn, Board* board );
         bool checkMate( Pieces turn, Board* board );
         bool inBounds( int x, int y );
-        std::set< std::tuple<int,int> >* crawlDirection( int x, int y, int dx, int dy, std::set< std::tuple<int,int> >* coords, Pieces mover_color, Board* board );
+        std::set< std::tuple<int,int> > crawlDirection( int x, int y, int dx, int dy, std::set< std::tuple<int,int> > coords, Pieces mover_color, Board* board );
         
         // Developer functions
         int countPieces( Board* board );
